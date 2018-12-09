@@ -1,13 +1,16 @@
 # Picassoboxes
-Stell dir vor, du hast einen boxartigen Bereich in 1, 2, 3, etc. Dimenensionen. Du willst boxartige Zellen unterschiedlicher Dimensionen darin zufällig erzeugen. Dein Ansatz? Du erzeugst Zufallspunkte und verwendest diese jeweils als den untersten Eckpunkt der Boxes. Problem? Die Boxes werden sich mit positiver Wahrscheinlichkeit überschneiden. Mit den **Picassoboxes** Klassen (`picassobox` und `picassoboxes`) kann man eben dieses Problem vermeiden. Die zweite Klasse bildet ein Netzwerk aus Boxen und berechnet den verfügbaren Platz, wo man Eckpunkte von einer hinzuzufügenden Box und dann um diesen Punkte die Box platzieren kann.
+Imagine you are working with a box-like region of 1, 2, 3, etc. dimensions.
+Now imagine you need to randomly generate cells (or smaller boxes).
+The typical approach? Generate points randomly and use these as the corner
+points of the boxes. The problem: the generated boxes will overlap with a non-0 probability. With **Picassoboxes** classes (`picassobox` und `picassoboxes`) this is avoidable. The latter class constructs a network of objects (each a `picassobox`) and during generation keeps track of the available space, where corner points may be safely placed for new boxes whilst avoiding overlaps.
 
-Diese Art von geometrischer Zufallserzeugung lässt sich in verschiedenen Fällen wie Biologie, Bodenmechanik, Diagrammerzeugung, usw. anwenden.
+This kind of geometric random generation may be applicable in different cases like biology, soil mechanics, generation of diagrammes, *etc.*
 
 ## Python Class
 
 [**Unter arbeit!**]
 
-### Beispielcode
+### Example Code
 ```python
 import picassoboxes;
 
@@ -37,7 +40,7 @@ for PB in PBnet.part: # zuletzt berechnete Partition des Bereichs
 
 [**Unter arbeit!**]
 
-### Beispielcode
+### Example Code
 ```php
 require_once "[PFAD]/picassoboxes.php";
 
