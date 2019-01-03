@@ -55,7 +55,6 @@ class picassobox:
 
 		sides = [];
 		trace = [];
-		disj = False;
 		for k,side in enumerate(self.box):
 			trace_ = [];
 			sides_ = [];
@@ -91,9 +90,6 @@ class picassobox:
 		boxes = [];
 		for i,trace in enumerate(traces):
 			box = part[i];
-			mass = 1;
-			for side in box:
-				mass = mass*(side[1]-side[0]);
 			col_ = 0;
 			if numpy.prod(trace) == 1:
 				col_ = col;
@@ -106,40 +102,37 @@ class picassobox:
 		if n == 0:
 			return [];
 		prod = [];
-		liste_ = liste[1:];
-		for x in liste[0]:
-			if n == 1:
+		if n == 1:
+			for x in liste[0]:
 				prod.append([x]);
-				continue;
-			for y in self.cartproduct(liste_):
-				prod.append([x]+y);
+		else:
+			prod_ = self.cartproduct(liste[1:]);
+			for y in prod_:
+				for x in liste[0]:
+					prod.append([x]+y);
 		return prod;
 
 	pass;
 
 
 class picassoboxes:
-	def __init__(self, sides):
-		self.dim = len(sides);
-		box = [];
-		for k in range(0, self.dim):
-			dx = sides[k];
-			box.append([0,dx]);
+	def __init__(self, box):
+		box = self.clonelist(box);
+		for i, x in enumerate(box):
+			if !isinstance(x, list):
+				box[i] = [0, x];
+
+		self.dim = len(box);
 		self.box = picassobox(box, 0);
 		self.mass = self.box.mass;
-
 		self.part = [self.box];
 		self.boxes = [];
 		self.bounds = [];
-		side_ = self.clonelist(sides);
-		for k, xx in enumerate(sides):
-			x = [0 for i in range(0, self.dim)];
-			y = side_;
-			x[k] = xx;
-			y[k] = xx;
-			box = [[x[j],y[j]] for j in range(0, self.dim)];
-			PB = picassobox(box, 1);
-			self.bounds.append(PB);
+
+		for k in range(0, self.dim):
+			box_ = self.clonelist(box);
+			box_[k][0] = box[k][1];
+			self.bounds.append(picassobox(box_, 1));
 
 		self.buffer = [0 for i in range(0, self.dim)];
 		return;
@@ -155,11 +148,7 @@ class picassoboxes:
 		self.part = [PB for PB in self.part if not(PB.colour == 0)];
 		boxes = [];
 		for PB in PB_filter:
-			if PB.colour == 1:
-				self.part.append(PB);
-			else:
-				boxes += PB.mince(PBfilt);
-
+			boxes += PB.mince(PBfilt);
 		self.part += list(numpy.random.permutation(boxes));
 
 		return;

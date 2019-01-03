@@ -61,7 +61,6 @@ class picassobox {
 
 		$sides = [];
 		$trace = [];
-		$disj = FALSE;
 		foreach($this->box as $k => $side) {
 			$trace_ = [];
 			$sides_ = [];
@@ -97,8 +96,6 @@ class picassobox {
 		$boxes = [];
 		foreach($traces as $i => $trace) {
 			$box = $part[$i];
-			$mass = 1;
-			foreach($box as $side) $mass = $mass*($side[1]-$side[0]);
 			$__col = 0;
 			if(array_product($trace) === 1) $__col = $col;
 			$PB = new picassobox($box,$__col);
@@ -111,13 +108,11 @@ class picassobox {
 		$n = count($liste);
 		if($n === 0) return [];
 		$prod = [];
-		$liste_ = array_slice($liste,1);
-		foreach($liste[0] as $x) {
-			if($n === 1) {
-				$prod[] = [$x];
-				continue;
-			}
-			foreach(picassobox::cartproduct($liste_) as $y) $prod[] = array_merge([$x], $y);
+		if($n === 1) {
+			foreach($liste[0] as $x) $prod[] = [$x];
+		} else {
+			$prod_ = picassobox::cartproduct(array_slice($liste, 1));
+			foreach($prod_ as $y) foreach($liste[0] as $x) $prod[] = array_merge([$x], $y);
 		}
 		return $prod;
 	}
@@ -125,29 +120,27 @@ class picassobox {
 
 
 class picassoboxes {
-	public function __construct($sides) {
-		$this->dim = count($sides);
-		$box = [];
-		for($k=0; $k<$this->dim; $k++) {
-			$dx = $sides[$k];
-			$box[] = [0,$dx];
+	public function __construct($box) {
+		$box = picassoboxes::clonelist($box);
+		$grenze_lo = [];
+		$grenze_hi = [];
+		foreach($box as $i => $x) {
+			if(!is_array($x)) $box[$i] = [0, $x];
+			$grenze_lo[] = $x[0];
+			$grenze_hi[] = $x[1];
 		}
+
+		$this->dim = count($box);
 		$this->box = new picassobox($box, 0);
 		$this->mass = $this->box->mass;
-
 		$this->part = [$this->box];
 		$this->boxes = [];
 		$this->bounds = [];
-		$side_ = picassoboxes::clonelist($sides);
-		foreach($sides as $k => $xx) {
-			$x = array_fill(0, $this->dim, 0);
-			$y = $side_;
-			$x[$k] = $xx;
-			$y[$k] = $xx;
-			$box = [];
-			for($j=0; $j<$this->dim; $j++) $box[] = [$x[$j],$y[$j]];
-			$PB = new picassobox($box, 1);
-			$this->bounds[] = $PB;
+
+		foreach(range(0, $this->dim - 1) as $k) {
+			$box_ = picassoboxes::clonelist($box);
+			$box_[$k][0] = $box[$k][1];
+			$this->bounds[] = new picassobox($box_, 1);
 		}
 
 		$this->buffer = array_fill(0, $this->dim, 0);
@@ -162,16 +155,9 @@ class picassoboxes {
 		$PB_filter = array_filter($this->part, function($PB) {return $PB->colour === 0;});
 		$this->part = array_filter($this->part, function($PB) {return !($PB->colour === 0);});
 		$boxes = [];
-		foreach($PB_filter as $PB) {
-			if($PB->colour === 1) {
-				$this->part[] = $PB;
-			} else {
-				foreach($PB->mince($PBfilt) as $PB_) $boxes[] = $PB_;
-			}
-		}
-
+		foreach($PB_filter as $PB) foreach($PB->mince($PBfilt) as $PB_) $boxes[] = $PB_;
 		shuffle($boxes);
-		$this->part = $boxes;
+		$this->part = array_merge($this->part, $boxes);
 		return;
 	}
 
