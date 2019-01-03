@@ -44,7 +44,8 @@ pyArray <- setRefClass('pyArray',
 			.self$length <- k;
 		},
 		seq = function() {
-			return(c(1:.self$length));
+			if(.self$length > 0) return(c(1:.self$length));
+			return(c());
 		},
 		get = function(ind=NULL) {
 			if(is.null(ind)) return(.self$values);
@@ -72,23 +73,21 @@ pyArray <- setRefClass('pyArray',
 			INPUTVARS <- list(...);
 			repl <- INPUTVARS[['replace']];
 			cb <- INPUTVARS[['filter']];
-			X <- .self$values;
-			XX <- pyArray();
+			X <- pyArray();
 			for(i in .self$seq()) {
-				val <- X[[i]];
+				val <- .self$values[[i]];
 				bool <- TRUE;
-				if(class(cb) == 'function') if(!cb(val,i,X)) next;
-				if(class(repl) == 'function') val <- repl(val,i,X);
-				XX$append(val);
+				if(class(cb) == 'function') if(!cb(val, i, .self)) next;
+				if(class(repl) == 'function') val <- repl(val, i, .self);
+				X$append(val);
 			}
-			return(XX);
+			return(X);
 		},
 		foreach = function(cb) {
-			X <- .self$values;
 			for(i in .self$seq()) {
-				val <- X[[i]];
+				val <- .self$values[[i]];
 				bool <- TRUE;
-				cb(val,i,X);
+				cb(val, i, .self);
 			}
 		},
 		shuffle = function() {
@@ -133,28 +132,25 @@ picassobox <- setRefClass('picassobox',
 		initialize = function(...) {
 			INPUTVARS = list(...);
 			if(length(INPUTVARS) >= 2) {
-				box_ <- INPUTVARS[[1]];
+				sides_ <- INPUTVARS[[1]];
 				colour_ <- INPUTVARS[[2]];
 			} else {
-				box_ <- list(0);
+				sides_ <- list(0);
 				colour_ <- 0;
 			}
-			if(class(box_) == 'pyArray') box_ <- box_$values;
-			if(!(class(box_) == 'list')) box_ <- as.list(box_);
-			.self$dim <- length(box_);
+			if(class(sides_) == 'pyArray') sides_ <- sides_$get();
+			if(!(class(sides_) == 'list')) sides_ <- as.list(sides_);
+			.self$dim <- length(sides_);
 			.self$sides <- pyArray();
 			.self$colour <- colour_;
 			.self$mass <- 1;
 			for(k in c(1:.self$dim)) {
-				side_ <- box_[[k]];
+				side_ <- sides_[[k]];
 				if(length(side_) == 1) side_ <- c(0,side_);
 				dx <- diff(side_);
 				.self$sides$append(side_);
 				.self$mass <- .self$mass * dx;
 			}
-		},
-		setcolour = function(colour_) {
-			.self$colour <- colour_;
 		},
 		randomunif = function() {
 			u <- runif(.self$dim);
@@ -184,6 +180,16 @@ picassobox <- setRefClass('picassobox',
 				if(side__[1] > side_[1] || side__[2] < side_[2]) return(FALSE);
 			}
 			return(TRUE);
+		},
+		modify = function(...) {
+			INPUTVARS <- list(...);
+			VARNAMES <- names(INPUTVARS);
+			X <- .self$copy();
+			sides_ <- X$sides;
+			if('preshift' %in% VARNAMES) for(k in X$sides$seq()) X$sides$values[[k]][1] <- X$sides$values[[k]][1] + INPUTVARS[['preshift']][k];
+			if('postshift' %in% VARNAMES) for(k in X$sides$seq()) X$sides$values[[k]][2] <- X$sides$values[[k]][2] + INPUTVARS[['postshift']][k];
+			if('colour' %in% VARNAMES) X$colour <- INPUTVARS[['colour']];
+			return(X);
 		},
 		mince = function(PBfilt, col=1) {
 			if(!.self$intersects(PBfilt)) return(pyArray(picassobox(.self$sides, 0)));
@@ -248,7 +254,7 @@ picassobox <- setRefClass('picassobox',
 				} else {
 					arr <- pyArray(from=arr$select(-1));
 					prod__ <- .self$cartproduct(arr, TRUE);
-					for(y in prod__$get()) for(x in arr_$get()) prod_$append(c(y,x));
+					for(y in prod__$get()) for(x in arr_$get()) prod_$append(c(x,y));
 				}
 			} else {
 				if(n == 1) {
@@ -256,7 +262,7 @@ picassobox <- setRefClass('picassobox',
 				} else {
 					arr <- pyArray(from=arr$select(-1));
 					prod__ <- .self$cartproduct(arr, FALSE);
-					for(y in prod__$get()) for(x in arr_$get()) prod_$append(y$concatone(x));
+					for(y in prod__$get()) for(x in arr_$get()) prod_$append(pyArray(x)$concat(y));
 				}
 			}
 			return(prod_);
@@ -276,19 +282,16 @@ picassoboxes <- setRefClass('picassoboxes',
 	),
 	methods = list(
 		initialize = function(...) {
-			INPUTVARS = list(...);
-			if(length(INPUTVARS) >= 1) {
-				sides_ <- INPUTVARS[[1]];
-			} else {
-				sides_ <- list(c(0,0));
-			}
-			sides__ = list();
+			INPUTVARS <- list(...);
+			sides_ <- list(c(0,0));
+			if(length(INPUTVARS) >= 1) sides_ <- INPUTVARS[[1]];
+			sides__ <- list();
 			for(i in seq_along(sides_)) {
 				x <- sides_[[i]];
 				if(length(x) == 1) x <- c(0,x);
-				sides__[[i]] = x;
+				sides__[[i]] <- x;
 			}
-			sides_ = sides__;
+			sides_ <- sides__;
 
 			.self$dim <- length(sides_);
 			.self$box <- picassobox(sides_, 0);
@@ -304,26 +307,17 @@ picassoboxes <- setRefClass('picassoboxes',
 
 			.self$buffer <- rep(0, .self$dim);
 		},
-		filtercell = function(PB, buffer_=FALSE) {
-			PBfilt <- PB$copy();
-			if(buffer_) {
-				for(k in c(1:.self$dim)) {
-					h <- .self$buffer[[k]];
-					x <- PBfilt$sides$get(k);
-					x[1] <- x[1]-h;
-					PBfilt$sides$set(k, x);
-				}
-			}
-			PBfilt$setcolour(1);
+		filtercell = function(PB) {
+			PBfilt <- PB$modify(preshift=-.self$buffer, colour=1);
 
-			PB_filter <- .self$part$filter(function(PB, i, arr) {
+			PBfree <- .self$part$filter(function(PB, i, arr) {
 				return(PB$colour == 0);
 			});
 			.self$part <- .self$part$filter(function(PB, i, arr) {
 				return(PB$colour == 1);
 			});
 			boxes_ <- pyArray();
-			for(PB in PB_filter$values) boxes_ <- boxes_$concat(PB$mince(PBfilt));
+			for(PB in PBfree$get()) boxes_ <- boxes_$concat(PB$mince(PBfilt));
 			.self$part <- .self$part$concat(boxes_$shuffle());
 
 			return(TRUE);
@@ -343,9 +337,15 @@ picassoboxes <- setRefClass('picassoboxes',
 		addrandomcell = function(bufferdim, n=1) {
 			if(length(bufferdim) == 1) bufferdim <- rep(bufferdim, .self$dim);
 
-			if(n > 1) {
+			if(n == 0) {
+				return(pyArray());
+			} else if(n > 1) {
 				cells <- pyArray();
-				for(i in c(1:n)) cells$append(.self$addrandomcell(bufferdim, 1));
+				for(i in c(1:n)) {
+					cell <- .self$addrandomcell(bufferdim, 1);
+					if(is.null(cell)) break;
+					cells$append(cell);
+				}
 				return(cells);
 			}
 
@@ -362,7 +362,7 @@ picassoboxes <- setRefClass('picassoboxes',
 				.self$part <- pyArray(.self$box);
 				boxes_ <- .self$boxes$copy();
 				boxes_ <- boxes_$concat(.self$bounds);
-				for(PB in boxes_$values) .self$filtercell(PB, TRUE);
+				for(PB in boxes_$get()) .self$filtercell(PB);
 			}
 
 			# Zufällige Selektion eines zulässigen Teils der Partition:
@@ -382,7 +382,7 @@ picassoboxes <- setRefClass('picassoboxes',
 			ind <- NULL;
 			for(i in seq_along(F)) {
 				m <- F[i];
-				if(i >= length(indices)) break;
+				if(i > length(indices)) break;
 				if(mu < m) next;
 				ind <- indices[i];
 				break;
@@ -392,17 +392,18 @@ picassoboxes <- setRefClass('picassoboxes',
 
 			# Zufällige Selektion eines Punkts in Box:
 			x <- PB$randomunif();
-			box_ <- pyArray();
+			sides_ <- pyArray();
 			for(k in seq_along(.self$buffer)) {
 				h <- .self$buffer[k];
-				box_$append(c(x[k],x[k]+h));
+				sides_$append(c(x[k],x[k]+h));
 			}
-			PB <- picassobox(box_, 1);
+			PB <- picassobox(sides_, 1);
 
 			# Füge zum Netzwerk von Zellen:
 			.self$boxes$append(PB);
 			# Partition verfeinern:
-			.self$filtercell(PB, TRUE);
+			.self$filtercell(PB);
+
 			return(PB);
 		}
 	)

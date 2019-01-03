@@ -147,9 +147,9 @@ class picassoboxes {
 		return;
 	}
 
-	public function filtercell($PB, $buffer=FALSE) {
+	public function filtercell($PB) {
 		$box = picassoboxes::clonelist($PB->box);
-		if($buffer) foreach($this->buffer as $k => $h) $box[$k][0] -= $h;
+		foreach($this->buffer as $k => $h) $box[$k][0] -= $h;
 		$PBfilt = new picassobox($box, 1);
 
 		$PB_filter = array_filter($this->part, function($PB) {return $PB->colour === 0;});
@@ -176,9 +176,15 @@ class picassoboxes {
 	public function addrandomcell($bufferdim, $n=1) {
 		if(!is_array($bufferdim)) $bufferdim = array_fill(0, $this->dim, $bufferdim);
 
-		if($n > 1) {
+		if($n === 0) {
+			return [];
+		} else if($n > 1) {
 			$cells = [];
-			for($i=0; $i<$n; $i++) $cells[] = $this->addrandomcell($bufferdim, 1);
+			for($i=0; $i<$n; $i++) {
+				$cell = $this->addrandomcell($bufferdim, 1);
+				if($cell === NULL) break;
+				$cells[] = $cell;
+			}
 			return $cells;
 		}
 
@@ -193,8 +199,8 @@ class picassoboxes {
 		if($bool) {
 			$this->buffer = $bufferdim;
 			$this->part = [$this->box];
-			foreach($this->boxes as $PB) $this->filtercell($PB, TRUE);
-			foreach($this->bounds as $PB) $this->filtercell($PB, TRUE);
+			foreach($this->boxes as $PB) $this->filtercell($PB);
+			foreach($this->bounds as $PB) $this->filtercell($PB);
 		}
 
 		# Zufällige Selektion eines zulässigen Teils der Partition:
@@ -229,7 +235,7 @@ class picassoboxes {
 		# Füge zum Netzwerk von Zellen:
 		$this->boxes[] = $PB;
 		# Partition verfeinern:
-		$this->filtercell($PB, TRUE);
+		$this->filtercell($PB);
 
 		return $PB;
 	}

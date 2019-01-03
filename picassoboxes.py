@@ -137,11 +137,10 @@ class picassoboxes:
 		self.buffer = [0 for i in range(0, self.dim)];
 		return;
 
-	def filtercell(self, PB, buffer=False):
+	def filtercell(self, PB):
 		box = self.clonelist(PB.box);
-		if buffer:
-			for k,h in enumerate(self.buffer):
-				box[k][0] -= h;
+		for k,h in enumerate(self.buffer):
+			box[k][0] -= h;
 		PBfilt = picassobox(box, 1);
 
 		PB_filter = [PB for PB in self.part if PB.colour == 0];
@@ -163,10 +162,15 @@ class picassoboxes:
 		if not isinstance(bufferdim, list):
 			bufferdim = [bufferdim for i in range(0, self.dim)];
 
+		if n == 0:
+			return [];
 		if n > 1:
 			cells = [];
 			for i in range(0, n):
-				cells.append(self.addrandomcell(bufferdim, 1));
+				cell = self.addrandomcell(bufferdim, 1);
+				if cell is None:
+					break;
+				cells.append(cell);
 			return cells;
 
 		bool = False;
@@ -181,7 +185,7 @@ class picassoboxes:
 			self.buffer = bufferdim;
 			self.part = [self.box];
 			for PB in self.boxes + self.bounds:
-				self.filtercell(PB, True);
+				self.filtercell(PB);
 
 		# Zufällige Selektion eines zulässigen Teils der Partition:
 		mass_free = 0;
@@ -218,7 +222,7 @@ class picassoboxes:
 		# Füge zum Netzwerk von Zellen:
 		self.boxes.append(PB);
 		# Partition verfeinern:
-		self.filtercell(PB, True);
+		self.filtercell(PB);
 
 		return PB;
 
