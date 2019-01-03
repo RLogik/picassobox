@@ -318,7 +318,8 @@ picassoboxes <- setRefClass('picassoboxes',
 			});
 			boxes_ <- pyArray();
 			for(PB in PBfree$get()) boxes_ <- boxes_$concat(PB$mince(PBfilt));
-			.self$part <- .self$part$concat(boxes_$shuffle());
+			boxes_ <- boxes_$shuffle();
+			.self$part <- .self$part$concat(boxes_);
 
 			return(TRUE);
 		},
