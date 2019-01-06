@@ -15,10 +15,13 @@
 #' @examples p %>% cluster(dist=10); # p is a numeric vector
 
 
+BOOL <- FALSE;
+
 
 
 ################################################################
 #### NEBENKLASSEN ##############################################
+
 pyArray <- setRefClass('pyArray',
 	fields = list(
 		length='numeric',
@@ -270,11 +273,10 @@ picassobox <- setRefClass('picassobox',
 	)
 );
 
-probabilitytree <- setRefClass('probabilitytree',
+picassotree <- setRefClass('picassotree',
 	fields = list(
 		nodes = 'pyArray',
 		edges= 'pyArray',
-		weight = 'pyArray',
 		isleaf = 'pyArray',
 		length = 'numeric'
 	),
@@ -283,17 +285,14 @@ probabilitytree <- setRefClass('probabilitytree',
 			INPUTVARS <- list(...);
 			obj <- NULL;
 			if(length(INPUTVARS) >= 1) obj <- INPUTVARS[[1]];
-
 			.self$nodes <- pyArray(obj);
 			.self$edges <- pyArray();
-			.self$weight <- pyArray(1);
 			.self$isleaf <- pyArray(TRUE);
 			.self$length <- 1;
 		},
-		add = function(k, obj, p) {
+		add = function(k, obj) {
 			n <- .self$length + 1;
 			.self$nodes$append(obj);
-			.self$weight$append(p);
 			.self$isleaf$set(k, FALSE);
 			.self$isleaf$append(TRUE);
 			.self$edges$append(c(k, n));
@@ -310,29 +309,6 @@ probabilitytree <- setRefClass('probabilitytree',
 			for(k in c(1:n)) if(.self$isleaf$get(k)) LEAVES <- c(LEAVES, k);
 			if(asindices) return(LEAVES);
 			return(pyArray(from=.self$nodes$select(LEAVES)));
-		},
-		randomselection = function(k=1) {
-			if(.self$isleaf$get(k)) {
-				return(.self$nodes$get(k))
-			} else {
-				kinder <- .self$children(k);
-				wt <- c();
-				for(kk in kinder) wt <- c(wt, .self$weight$get(kk));
-
-				F <- cumsum(c(0, wt));
-				u <- runif(1);
-				ind <- NULL;
-				for(i in c(1:(length(F)-1))) {
-					if(wt[i] == 0) next;
-					if(u >= F[i+1]) next;
-					ind <- i;
-					break;
-				}
-
-				if(is.null(ind)) return(NULL);
-				k <- kinder[ind];
-				return(.self$randomselection(k));
-			}
 		}
 	)
 );
@@ -343,8 +319,8 @@ picassoboxes <- setRefClass('picassoboxes',
 		boxes='pyArray',
 		box='picassobox',
 		bounds='pyArray',
-		buffer='numeric',
-		tree='probabilitytree'
+		filter='pyArray',
+		buffer='numeric'
 	),
 	methods = list(
 		initialize = function(...) {
@@ -363,6 +339,7 @@ picassoboxes <- setRefClass('picassoboxes',
 			.self$box <- picassobox(sides_, 0);
 			.self$boxes <- pyArray();
 			.self$bounds <- pyArray();
+			.self$filter <- pyArray();
 
 			for(k in c(1:.self$dim)) {
 				sides__ <- sides_;
@@ -371,95 +348,97 @@ picassoboxes <- setRefClass('picassoboxes',
 			}
 
 			.self$buffer <- rep(0, .self$dim);
-			.self$tree <- probabilitytree(.self$box);
 		},
-		filtercell = function(PB) {
-			PBfilt <- PB$modify(preshift=-.self$buffer, colour=1);
-
-			for(k in .self$tree$getleaves(TRUE)) {
-				PB <- .self$tree$nodes$get(k);
-				if(PB$mass == 0 || !(PB$colour == 0)) next;
-				part <- PB$mince(PBfilt);
-				m <- 0;
-				for(PB_ in part$get()) if(PB_$colour == 0) m <- m + PB_$mass;
-				if(m == 0) {
-					PB$colour <- 1;
-					.self$tree$nodes$set(k, PB);
-				} else {
-					for(PB_ in part$get()) {
-						m_ <- PB_$mass;
-						if(m_ > 0 && PB_$colour == 0) {
-							.self$tree$add(k, PB_, m_/m);
-						} else {
-							.self$tree$add(k, PB_, 0);
-						}
-					}
+		getpartition = function() {
+			tree <- picassotree(.self$box);
+			boxes_ <- pyArray();
+			for(PB in .self$boxes$get()) boxes_$append(PB);
+			for(PB in .self$bounds$get()) boxes_$append(PB);
+			for(PB in boxes_$get()) {
+				PB <- PB$modify(preshift=-.self$buffer, colour=1);
+				for(k in tree$getleaves(TRUE)) {
+					PB_ <- tree$nodes$get(k);
+					if(!(PB_$colour == 0)) next;
+					part <- PB_$mince(PB);
+					for(PB__ in part$get()) tree$add(k, PB__);
 				}
 			}
+			return(tree$getleaves());
+		},
+		randomselection = function(k=0, PB=NULL) {
+			if(k == 0) return(.self$randomselection(1, .self$box));
+			if(k > .self$filter$length) return(PB);
+			PB_e <- NULL;
 
-			return(TRUE);
-		},
-		getboxes = function() {
-			return(.self$boxes$comprehension(replace=function(PB, i, arr) {
-				return(PB$sides);
-			}));
-		},
-		getpartition = function(col_) {
-			return(.self$tree$nodes(replace=function(PB, i, arr) {
-				return(PB$sides);
-			}, filter=function(PB, i, arr) {
-				return(.self$tree$isleaf$get(i) && PB$colour == col_)
-			}));
+			PB_filt <- .self$filter$get(k);
+			part <- PB$mince(PB_filt);
+			part <- part$filter(function(PB_, i, this) {
+				return(PB_$colour == 0 && PB_$mass > 0);
+			});
+			if(part$length == 0) return(NULL);
+
+			wt <- c();
+			for(PB_ in part$get()) wt <- c(wt, PB_$mass);
+			ind <- part$seq();
+			while(length(ind) > 0) {
+				wt_ <- wt[ind];
+				wt_ <- wt_/sum(wt_);
+				F <- cumsum(c(0,wt_));
+				u <- runif(1);
+				j <- 1;
+				for(i in c(1:(length(F)-1))) {
+					if(u >= F[i+1]) next;
+					j <- i;
+					break;
+				}
+				PB_ <- part$get(ind[j]);
+				PB_e <- .self$randomselection(k+1, PB_);
+				if(!is.null(PB_e)) break;
+				ind <- ind[-j];
+			}
+			return(PB_e);
 		},
 		addrandomcell = function(bufferdim, n=1) {
+			if(!is.vector(bufferdim)) bufferdim <- c(0);
 			if(length(bufferdim) == 1) bufferdim <- rep(bufferdim, .self$dim);
+
+			.self$buffer <- bufferdim;
 
 			if(n == 0) {
 				return(pyArray());
 			} else if(n > 1) {
 				cells <- pyArray();
+				t <- as.numeric(Sys.time());
 				for(i in c(1:n)) {
 					cell <- .self$addrandomcell(bufferdim, 1);
 					if(is.null(cell)) break;
 					cells$append(cell);
 				}
+				t_ <- as.numeric(Sys.time());
+				print(t_-t);
 				return(cells);
 			}
 
-			bool <- FALSE;
-			for(k in seq_along(.self$buffer)) {
-				if(.self$buffer[k] == bufferdim[k]) next;
-				bool <- TRUE;
-				break;
-			}
-
-			# Partition für zulässige Teile ggf. neu berechnen:
-			if(bool) {
-				.self$buffer <- bufferdim;
-				.self$tree <- probabilitytree(.self$box);
-				boxes_ <- .self$boxes$copy();
-				boxes_ <- boxes_$concat(.self$bounds);
-				for(PB in boxes_$get()) .self$filtercell(PB);
-			}
+			# Partition für zulässige Teile neu berechnen:
+			.self$filter <- pyArray();
+			for(PB in .self$bounds$get()) .self$filter$append(PB$modify(preshift=-bufferdim, colour=1));
+			for(PB in .self$boxes$get()) .self$filter$append(PB$modify(preshift=-bufferdim, colour=1));
 
 			# Zufällige Selektion eines zulässigen Teils der Partition:
-			PB <- .self$tree$randomselection();
-			if(is.null(PB)) return(NULL);
-
+			PB_part <- .self$randomselection();
+			if(is.null(PB_part)) return(NULL);
 
 			# Zufällige Selektion eines Punkts in Box:
-			x <- PB$randomunif();
+			x <- PB_part$randomunif();
 			sides_ <- pyArray();
-			for(k in seq_along(.self$buffer)) {
-				h <- .self$buffer[k];
+			for(k in seq_along(bufferdim)) {
+				h <- bufferdim[k];
 				sides_$append(c(x[k],x[k]+h));
 			}
 			PB <- picassobox(sides_, 1);
 
 			# Füge zum Netzwerk von Zellen:
 			.self$boxes$append(PB);
-			# Partition verfeinern:
-			.self$filtercell(PB);
 
 			return(PB);
 		}
