@@ -270,15 +270,81 @@ picassobox <- setRefClass('picassobox',
 	)
 );
 
+probabilitytree <- setRefClass('probabilitytree',
+	fields = list(
+		nodes = 'pyArray',
+		edges= 'pyArray',
+		weight = 'pyArray',
+		isleaf = 'pyArray',
+		length = 'numeric'
+	),
+	methods = list(
+		initialize = function(...) {
+			INPUTVARS <- list(...);
+			obj <- NULL;
+			if(length(INPUTVARS) >= 1) obj <- INPUTVARS[[1]];
+
+			.self$nodes <- pyArray(obj);
+			.self$edges <- pyArray();
+			.self$weight <- pyArray(1);
+			.self$isleaf <- pyArray(TRUE);
+			.self$length <- 1;
+		},
+		add = function(k, obj, p) {
+			n <- .self$length + 1;
+			.self$nodes$append(obj);
+			.self$weight$append(p);
+			.self$isleaf$set(k, FALSE);
+			.self$isleaf$append(TRUE);
+			.self$edges$append(c(k, n));
+			.self$length <- n;
+		},
+		children = function(k) {
+			kinder <- c();
+			for(e in .self$edges$get()) if(e[1] == k) kinder <- c(kinder, e[2]);
+			return(kinder);
+		},
+		getleaves = function(asindices=FALSE) {
+			n <- .self$length;
+			LEAVES <- c();
+			for(k in c(1:n)) if(.self$isleaf$get(k)) LEAVES <- c(LEAVES, k);
+			if(asindices) return(LEAVES);
+			return(pyArray(from=.self$nodes$select(LEAVES)));
+		},
+		randomselection = function(k=1) {
+			if(.self$isleaf$get(k)) {
+				return(.self$nodes$get(k))
+			} else {
+				kinder <- .self$children(k);
+				wt <- c();
+				for(kk in kinder) wt <- c(wt, .self$weight$get(kk));
+
+				F <- cumsum(c(0, wt));
+				u <- runif(1);
+				ind <- NULL;
+				for(i in c(1:(length(F)-1))) {
+					if(wt[i] == 0) next;
+					if(u >= F[i+1]) next;
+					ind <- i;
+					break;
+				}
+
+				if(is.null(ind)) return(NULL);
+				k <- kinder[ind];
+				return(.self$randomselection(k));
+			}
+		}
+	)
+);
 
 picassoboxes <- setRefClass('picassoboxes',
 	fields = list(
 		dim='numeric',
 		boxes='pyArray',
 		box='picassobox',
-		part='pyArray',
 		bounds='pyArray',
-		buffer='numeric'
+		buffer='numeric',
+		tree='probabilitytree'
 	),
 	methods = list(
 		initialize = function(...) {
@@ -295,7 +361,6 @@ picassoboxes <- setRefClass('picassoboxes',
 
 			.self$dim <- length(sides_);
 			.self$box <- picassobox(sides_, 0);
-			.self$part <- pyArray(.self$box);
 			.self$boxes <- pyArray();
 			.self$bounds <- pyArray();
 
@@ -306,20 +371,31 @@ picassoboxes <- setRefClass('picassoboxes',
 			}
 
 			.self$buffer <- rep(0, .self$dim);
+			.self$tree <- probabilitytree(.self$box);
 		},
 		filtercell = function(PB) {
 			PBfilt <- PB$modify(preshift=-.self$buffer, colour=1);
 
-			PBfree <- .self$part$filter(function(PB, i, arr) {
-				return(PB$colour == 0);
-			});
-			.self$part <- .self$part$filter(function(PB, i, arr) {
-				return(PB$colour == 1);
-			});
-			boxes_ <- pyArray();
-			for(PB in PBfree$get()) boxes_ <- boxes_$concat(PB$mince(PBfilt));
-			boxes_ <- boxes_$shuffle();
-			.self$part <- .self$part$concat(boxes_);
+			for(k in .self$tree$getleaves(TRUE)) {
+				PB <- .self$tree$nodes$get(k);
+				if(PB$mass == 0 || !(PB$colour == 0)) next;
+				part <- PB$mince(PBfilt);
+				m <- 0;
+				for(PB_ in part$get()) if(PB_$colour == 0) m <- m + PB_$mass;
+				if(m == 0) {
+					PB$colour <- 1;
+					.self$tree$nodes$set(k, PB);
+				} else {
+					for(PB_ in part$get()) {
+						m_ <- PB_$mass;
+						if(m_ > 0 && PB_$colour == 0) {
+							.self$tree$add(k, PB_, m_/m);
+						} else {
+							.self$tree$add(k, PB_, 0);
+						}
+					}
+				}
+			}
 
 			return(TRUE);
 		},
@@ -329,10 +405,10 @@ picassoboxes <- setRefClass('picassoboxes',
 			}));
 		},
 		getpartition = function(col_) {
-			return(.self$part$comprehension(replace=function(PB, i, arr) {
+			return(.self$tree$nodes(replace=function(PB, i, arr) {
 				return(PB$sides);
 			}, filter=function(PB, i, arr) {
-				return(PB$colour == col_)
+				return(.self$tree$isleaf$get(i) && PB$colour == col_)
 			}));
 		},
 		addrandomcell = function(bufferdim, n=1) {
@@ -360,36 +436,16 @@ picassoboxes <- setRefClass('picassoboxes',
 			# Partition für zulässige Teile ggf. neu berechnen:
 			if(bool) {
 				.self$buffer <- bufferdim;
-				.self$part <- pyArray(.self$box);
+				.self$tree <- probabilitytree(.self$box);
 				boxes_ <- .self$boxes$copy();
 				boxes_ <- boxes_$concat(.self$bounds);
 				for(PB in boxes_$get()) .self$filtercell(PB);
 			}
 
 			# Zufällige Selektion eines zulässigen Teils der Partition:
-			mass_free <- 0;
-			F <- c(0);
-			indices <- c();
-			for(ind in .self$part$seq()) {
-				PB <- .self$part$get(ind);
-				if(PB$colour == 1) next;
-				indices <- c(indices, ind);
-				mass_free <- mass_free + PB$mass;
-				F <- c(F, mass_free);
-			}
+			PB <- .self$tree$randomselection();
+			if(is.null(PB)) return(NULL);
 
-			u <- runif(1);
-			mu <- mass_free*u;
-			ind <- NULL;
-			for(i in seq_along(F)) {
-				m <- F[i];
-				if(i > length(indices)) break;
-				if(mu < m) next;
-				ind <- indices[i];
-				break;
-			}
-			if(is.null(ind)) return(NULL);
-			PB <- .self$part$get(ind);
 
 			# Zufällige Selektion eines Punkts in Box:
 			x <- PB$randomunif();
