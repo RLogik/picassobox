@@ -56,6 +56,16 @@ class picassobox {
 		return $bool;
 	}
 
+	public function modify($params) {
+		$X = new picassobox($this->sides, $this->colour);
+
+		if(isset($params['preshift'])) for($k=0; $k<$this->dim; $k++) $X->sides[k][0] += $params['preshift'][k];
+		if(isset($params['postshift'])) for($k=0; $k<$this->dim; $k++) $X->sides[k][1] += $params['postshift'][k];
+		if(isset($params['colour'])) $X->colour = $params['colour'];
+
+		return $X;
+	}
+
 	public function mince($PBfilt, $col=1) {
 		if(!$this->intersects($PBfilt)) return [new picassobox($this->box, 0)];
 
@@ -120,6 +130,8 @@ class picassobox {
 
 
 class picassoboxes {
+	private $filter = [];
+
 	public function __construct($box) {
 		$box = picassoboxes::clonelist($box);
 		$grenze_lo = [];
@@ -147,97 +159,95 @@ class picassoboxes {
 		return;
 	}
 
-	public function filtercell($PB) {
-		$box = picassoboxes::clonelist($PB->box);
-		foreach($this->buffer as $k => $h) $box[$k][0] -= $h;
-		$PBfilt = new picassobox($box, 1);
-
-		$PB_filter = array_filter($this->part, function($PB) {return $PB->colour === 0;});
-		$this->part = array_filter($this->part, function($PB) {return !($PB->colour === 0);});
-		$boxes = [];
-		foreach($PB_filter as $PB) foreach($PB->mince($PBfilt) as $PB_) $boxes[] = $PB_;
-		shuffle($boxes);
-		$this->part = array_merge($this->part, $boxes);
-		return;
-	}
-
-	public function getboxes() {
-		$boxes = [];
-		foreach($this->boxes as $PB) $boxes[] = $PB->box;
-		return $boxes;
-	}
-
-	public function getpartition($colour) {
+	public function getpartition() {
 		$boxes = [];
 		foreach($this->part as $PB) if($PB->colour === $colour) $boxes[] = $PB->box;
 		return $boxes;
 	}
 
-	public function addrandomcell($bufferdim, $n=1) {
-		if(!is_array($bufferdim)) $bufferdim = array_fill(0, $this->dim, $bufferdim);
+	public function randomselection($depth=0, $PB=NULL) {
+		if($depth == 0) return($this->randomselection(1, $this->box));
+		if($depth > count($this->filter)) return($PB);
 
-		if($n === 0) {
-			return [];
+		$PB_e = NULL;
+		$part = $PB->mince($this->filter[$depth]);
+		$part = array_filter($part, function($PB_) {
+			return($PB_->colour == 0 && $PB_->mass > 0);
+		});
+		if(count($part) == 0) return(NULL);
+
+		$wt = [];
+		foreach($part as $PB_) $wt[] = $PB_->mass;
+		$wt_ = $wt;
+		$len_ind = count($part);
+		$ind = range(0, $len_ind-1);
+		while($len_ind > 0) {
+			$F = [0];
+			$sum = 0;
+			foreach($wt_ as $m) {
+				$sum += $m;
+				$F[] = $sum;
+			}
+			$u = mt_rand(0,2147483647-1)/2147483647;
+			$m = $sum*$u;
+			$j = 0;
+			for($i=0; $i<$len_ind; $i++) {
+				if($m >= F[$i+1]) continue;
+				$j = $i;
+				break;
+			}
+			$PB_ = $part[$ind[$j]];
+			$PB_e = $this->randomselection($depth+1, $PB_);
+			if($PB_e instanceof picassobox) break;
+			$ind_ = [];
+			for($i=0; $i<$len_ind; $i++) {
+				if($i === $j) continue;
+				$ind_[] = $ind[$i];
+				$wt_[] = $wt_[$i];
+			}
+			$len_ind--;
+		}
+		return($PB_e);
+	}
+
+	public function addrandomcell($bufferdim, $n=1) {
+		if(is_numeric($bufferdim)) $bufferdim = array_fill($bufferdim, $this->dim, $bufferdim);
+		if(!is_array($bufferdim)) $bufferdim = array_fill(0, $this->dim, 0);
+
+		$this->buffer = $bufferdim;
+
+		if(n == 0) {
+			return([]);
 		} else if($n > 1) {
 			$cells = [];
 			for($i=0; $i<$n; $i++) {
 				$cell = $this->addrandomcell($bufferdim, 1);
-				if($cell === NULL) break;
+				if(!($cell instanceof picassobox)) break;
 				$cells[] = $cell;
 			}
-			return $cells;
+			return(cells);
 		}
 
-		$bool = FALSE;
-		foreach($this->buffer as $k => $h) {
-			if($h === $bufferdim[$k]) continue;
-			$bool = TRUE;
-			break;
-		}	
-
-		# Partition für zulässige Teile ggf. neu berechnen:
-		if($bool) {
-			$this->buffer = $bufferdim;
-			$this->part = [$this->box];
-			foreach($this->boxes as $PB) $this->filtercell($PB);
-			foreach($this->bounds as $PB) $this->filtercell($PB);
-		}
+		# Partition für zulässige Teile neu berechnen:
+		$this->filter = [];
+		// foreach($bufferdim as $k => $val) $bufferdim[$k] = -$val;
+		foreach($this->bounds as $PB) $this->filter[] = $PB->modify(['preshift'=>-$bufferdim, 'colour'=>1]);
+		foreach($this->boxes as $PB) $this->filter[] = $PB->modify(['preshift'=>-$bufferdim, 'colour'=>1]);
 
 		# Zufällige Selektion eines zulässigen Teils der Partition:
-		$mass_free = 0;
-		$F = [0];
-		$indices = [];
-		foreach($this->part as $ind => $PB) {
-			if($PB->colour === 1) continue;
-			$indices[] = $ind;
-			$mass_free += $PB->mass;
-			$F[] = $mass_free;
-		}
-
-		$u = mt_rand(0,2147483647-1)/2147483647;
-		$mu = $mass_free*$u;
-		$ind = NULL;
-		foreach($F as $i => $m) {
-			if($i >= count($indices)) break;
-			if($mu < $m) continue;
-			$ind = $indices[$i];
-			break;
-		}
-		if($ind === NULL) return NULL;
-		$PB = $this->part[$ind];
+		$PB_part = $this->randomselection();
+		if(!($PB_part instanceof picassobox)) return(NULL);
 
 		# Zufällige Selektion eines Punkts in Box:
-		$x = $PB->randomunif();
-		$box = [];
-		foreach($this->buffer as $k => $h) $box[] = [$x[$k],$x[$k]+$h];
-		$PB = new picassobox($box, 1);
+		$x = $PB_part->randomunif();
+		$sides = [];
+		foreach($bufferdim as $k => $h) $sides[] = [$x[$k], $x[$k]+$h];
+		$PB = new picassobox($sides, 1);
 
 		# Füge zum Netzwerk von Zellen:
 		$this->boxes[] = $PB;
-		# Partition verfeinern:
-		$this->filtercell($PB);
 
-		return $PB;
+		return($PB);
 	}
 
 	private static function clonelist($x, $deep=TRUE) {

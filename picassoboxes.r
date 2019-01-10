@@ -187,11 +187,12 @@ picassobox <- setRefClass('picassobox',
 		modify = function(...) {
 			INPUTVARS <- list(...);
 			VARNAMES <- names(INPUTVARS);
-			X <- .self$copy();
-			sides_ <- X$sides;
+
+			X <- picassobox(.self$sides, .self$colour);
 			if('preshift' %in% VARNAMES) for(k in X$sides$seq()) X$sides$values[[k]][1] <- X$sides$values[[k]][1] + INPUTVARS[['preshift']][k];
 			if('postshift' %in% VARNAMES) for(k in X$sides$seq()) X$sides$values[[k]][2] <- X$sides$values[[k]][2] + INPUTVARS[['postshift']][k];
 			if('colour' %in% VARNAMES) X$colour <- INPUTVARS[['colour']];
+
 			return(X);
 		},
 		mince = function(PBfilt, col=1) {
@@ -273,46 +274,6 @@ picassobox <- setRefClass('picassobox',
 	)
 );
 
-picassotree <- setRefClass('picassotree',
-	fields = list(
-		nodes = 'pyArray',
-		edges= 'pyArray',
-		isleaf = 'pyArray',
-		length = 'numeric'
-	),
-	methods = list(
-		initialize = function(...) {
-			INPUTVARS <- list(...);
-			obj <- NULL;
-			if(length(INPUTVARS) >= 1) obj <- INPUTVARS[[1]];
-			.self$nodes <- pyArray(obj);
-			.self$edges <- pyArray();
-			.self$isleaf <- pyArray(TRUE);
-			.self$length <- 1;
-		},
-		add = function(k, obj) {
-			n <- .self$length + 1;
-			.self$nodes$append(obj);
-			.self$isleaf$set(k, FALSE);
-			.self$isleaf$append(TRUE);
-			.self$edges$append(c(k, n));
-			.self$length <- n;
-		},
-		children = function(k) {
-			kinder <- c();
-			for(e in .self$edges$get()) if(e[1] == k) kinder <- c(kinder, e[2]);
-			return(kinder);
-		},
-		getleaves = function(asindices=FALSE) {
-			n <- .self$length;
-			LEAVES <- c();
-			for(k in c(1:n)) if(.self$isleaf$get(k)) LEAVES <- c(LEAVES, k);
-			if(asindices) return(LEAVES);
-			return(pyArray(from=.self$nodes$select(LEAVES)));
-		}
-	)
-);
-
 picassoboxes <- setRefClass('picassoboxes',
 	fields = list(
 		dim='numeric',
@@ -350,28 +311,32 @@ picassoboxes <- setRefClass('picassoboxes',
 			.self$buffer <- rep(0, .self$dim);
 		},
 		getpartition = function() {
-			tree <- picassotree(.self$box);
+			part <- pyArray(.self$box);
 			boxes_ <- pyArray();
 			for(PB in .self$boxes$get()) boxes_$append(PB);
 			for(PB in .self$bounds$get()) boxes_$append(PB);
 			for(PB in boxes_$get()) {
 				PB <- PB$modify(preshift=-.self$buffer, colour=1);
-				for(k in tree$getleaves(TRUE)) {
-					PB_ <- tree$nodes$get(k);
-					if(!(PB_$colour == 0)) next;
-					part <- PB_$mince(PB);
-					for(PB__ in part$get()) tree$add(k, PB__);
+				part_ <- pyArray();
+				for(k in part$seq()) {
+					PB_ <- part$get(k);
+					if(PB_$colour == 0) {
+						part__ <- PB_$mince(PB);
+					} else {
+						part__ <- pyArray(PB_);
+					}
+					for(PB__ in part__$get()) part_$append(PB__);
 				}
+				part <- part_;
 			}
-			return(tree$getleaves());
+			return(part);
 		},
-		randomselection = function(k=0, PB=NULL) {
-			if(k == 0) return(.self$randomselection(1, .self$box));
-			if(k > .self$filter$length) return(PB);
-			PB_e <- NULL;
+		randomselection = function(depth=0, PB=NULL) {
+			if(depth == 0) return(.self$randomselection(1, .self$box));
+			if(depth > .self$filter$length) return(PB);
 
-			PB_filt <- .self$filter$get(k);
-			part <- PB$mince(PB_filt);
+			PB_e <- NULL;
+			part <- PB$mince(.self$filter$get(depth));
 			part <- part$filter(function(PB_, i, this) {
 				return(PB_$colour == 0 && PB_$mass > 0);
 			});
@@ -379,22 +344,25 @@ picassoboxes <- setRefClass('picassoboxes',
 
 			wt <- c();
 			for(PB_ in part$get()) wt <- c(wt, PB_$mass);
+			wt_ <- wt;
 			ind <- part$seq();
-			while(length(ind) > 0) {
-				wt_ <- wt[ind];
-				wt_ <- wt_/sum(wt_);
+			len_ind <- length(ind);
+			while(len_ind > 0) {
 				F <- cumsum(c(0,wt_));
 				u <- runif(1);
+				m <- F[length(F)]*u;
 				j <- 1;
-				for(i in c(1:(length(F)-1))) {
-					if(u >= F[i+1]) next;
+				for(i in c(1:len_ind)) {
+					if(m >= F[i+1]) next;
 					j <- i;
 					break;
 				}
 				PB_ <- part$get(ind[j]);
-				PB_e <- .self$randomselection(k+1, PB_);
+				PB_e <- .self$randomselection(depth+1, PB_);
 				if(!is.null(PB_e)) break;
 				ind <- ind[-j];
+				wt_ <- wt_[-j];
+				len_ind <- len_ind - 1;
 			}
 			return(PB_e);
 		},
@@ -408,14 +376,11 @@ picassoboxes <- setRefClass('picassoboxes',
 				return(pyArray());
 			} else if(n > 1) {
 				cells <- pyArray();
-				t <- as.numeric(Sys.time());
 				for(i in c(1:n)) {
 					cell <- .self$addrandomcell(bufferdim, 1);
 					if(is.null(cell)) break;
 					cells$append(cell);
 				}
-				t_ <- as.numeric(Sys.time());
-				print(t_-t);
 				return(cells);
 			}
 

@@ -2,21 +2,19 @@ import numpy;
 
 
 class picassobox:
-	def __init__(self, box, colour):
-		self.dim = len(box);
-		self.box = box;
+	def __init__(self, sides, colour):
+		self.dim = len(sides);
+		self.sides = sides;
 		self.colour = colour;
-		self.sides = [];
 		self.mass = 1;
-		for side in box:
+		for side in sides:
 			dx = side[1]-side[0];
-			self.sides.append(dx);
 			self.mass = self.mass*dx;
 		return;
 
 	def randomunif(self):
 		x = [];
-		for xx in self.box:
+		for xx in self.sides:
 			u = numpy.random.uniform(0,1);
 			x.append(xx[0] + u*(xx[1]-xx[0]));
 		return x;
@@ -25,15 +23,15 @@ class picassobox:
 		if not isinstance(coord, list):
 			coord = [coord for k in range(0, self.dim)];
 		x = [];
-		for k, xx in enumerate(self.box):
+		for k, xx in enumerate(self.sides):
 			u = coord[k];
 			x.append(xx[0] + u*(xx[1]-xx[0]));
 		return x;
 
 	def intersects(self, PB):
 		bool = True;
-		for k,side in enumerate(self.box):
-			side_ = PB.box[k];
+		for k,side in enumerate(self.sides):
+			side_ = PB.sides[k];
 			if side_[1] <= side[0] or side[1] <= side_[0]:
 				bool = False;
 				break;
@@ -41,24 +39,38 @@ class picassobox:
 
 	def subseteq(self, PB):
 		bool = True;
-		for k, side in enumerate(self.box):
-			side_ = PB.box[k];
+		for k, side in enumerate(self.sides):
+			side_ = PB.sides[k];
 			if side_[0] <= side[0] and side[0] <= side_[1] and side[1] <= side_[1]:
 				continue;
 			bool = False;
 			break;
 		return bool;
 
+	def modify(self, params):
+		X = picassobox(self.sides, self.colour);
+
+		if 'preshift' in params:
+			for k  in range(0, self.dim):
+				X.sides[k][0] += params['preshift'][k];
+		if 'postshift' in params:
+			for k  in range(0, self.dim):
+				X.sides[k][1] += params['postshift'][k];
+		if 'colour' in params:
+			X.colour = params['colour'];
+
+		return X;
+
 	def mince(self, PBfilt, col=1):
 		if not self.intersects(PBfilt):
-			return [picassobox(self.box, 0)];
+			return [picassobox(self.sides, 0)];
 
 		sides = [];
 		trace = [];
-		for k,side in enumerate(self.box):
+		for k,side in enumerate(self.sides):
 			trace_ = [];
 			sides_ = [];
-			side_ = PBfilt.box[k];
+			side_ = PBfilt.sides[k];
 			a = side[0];
 			b = side[1];
 			aa = side_[0];
@@ -85,15 +97,15 @@ class picassobox:
 			trace.append(trace_);
 			pass;
 
-		traces = self.cartproduct(trace);
 		part = self.cartproduct(sides);
+		traces = self.cartproduct(trace);
 		boxes = [];
 		for i,trace in enumerate(traces):
-			box = part[i];
+			sides = part[i];
 			col_ = 0;
 			if numpy.prod(trace) == 1:
 				col_ = col;
-			PB = picassobox(box,col_);
+			PB = picassobox(sides, col_);
 			boxes.append(PB);
 		return boxes;
 
@@ -116,115 +128,124 @@ class picassobox:
 
 
 class picassoboxes:
-	def __init__(self, box):
-		box = self.clonelist(box);
-		for i, x in enumerate(box):
+	def __init__(self, sides):
+		sides = self.clonelist(sides);
+		for i, x in enumerate(sides):
 			if !isinstance(x, list):
-				box[i] = [0, x];
+				sides[i] = [0, x];
 
-		self.dim = len(box);
-		self.box = picassobox(box, 0);
-		self.mass = self.box.mass;
-		self.part = [self.box];
+		self.dim = len(sides);
+		self.box = picassobox(sides, 0);
 		self.boxes = [];
 		self.bounds = [];
 
 		for k in range(0, self.dim):
-			box_ = self.clonelist(box);
-			box_[k][0] = box[k][1];
-			self.bounds.append(picassobox(box_, 1));
+			sides_ = self.clonelist(sides);
+			sides_[k][0] = sides[k][1];
+			self.bounds.append(picassobox(sides_, 1));
 
 		self.buffer = [0 for i in range(0, self.dim)];
 		return;
 
-	def filtercell(self, PB):
-		box = self.clonelist(PB.box);
-		for k,h in enumerate(self.buffer):
-			box[k][0] -= h;
-		PBfilt = picassobox(box, 1);
-
-		PB_filter = [PB for PB in self.part if PB.colour == 0];
-		self.part = [PB for PB in self.part if not(PB.colour == 0)];
-		boxes = [];
-		for PB in PB_filter:
-			boxes += PB.mince(PBfilt);
-		self.part += list(numpy.random.permutation(boxes));
-
-		return;
-
 	def getboxes(self):
-		return [PB.box for PB in self.boxes];
+		return [PB.sides for PB in self.boxes];
 
-	def getpartition(self, colour):
-		return [PB.box for PB in self.part if PB.colour == colour];
+	def getpartition(self):
+		part <- [self.box];
+		for PB in self.boxes + self.bounds:
+			PB = PB.modify(preshift=-self.buffer, colour=1);
+			part_ = [];
+			for PB_ in part:
+				if PB_.colour == 0:
+					part__ = PB_.mince(PB);
+				else:
+					part__ = [PB_];
+				for PB__ in part__:
+					part_.append(PB__);
+			part = part_;
+		return part;
+
+	def randomselection(self, k=0, PB=None):
+		if k == 0:
+			return self.randomselection(1, self.box);
+		if k > len(self.filter):
+			return PB;
+
+		PB_e = None;
+		part = PB.mince(self.filter[k]);
+		part = [PB_ for PB_ in part if PB_.colour == 0 and PB_.mass > 0];
+		if len(part) == 0:
+			return None;
+
+		wt = [];
+		for PB_ in part:
+			wt.append(PB_.mass);
+		wt_ = wt;
+		len_ind = len(part);
+		ind = range(0,len(part));
+		while len_ind > 0:
+			F = [0];
+			m_tot = 0
+			for i,m in enumerate(wt_):
+				m_tot += m;
+				F.append(m_tot);
+			u = numpy.random.uniform(0, 1);
+			m = m_tot*u;
+			j = 0;
+			for i in range(0, len(ind)):
+				if m >= F[i+1]:
+					continue;
+				j = i;
+				break;
+			PB_ = part[ind[j]];
+			PB_e = self.randomselection(k+1, PB_);
+			if not PB_e is None:
+				break;
+			wt_ = [x for i,x in enumerate(wt) if not i == j];
+			ind = [i for i in ind if not i == j];
+			len_ind--;
+
+		return PB_e;
 
 	def addrandomcell(self, bufferdim, n=1):
-		if not isinstance(bufferdim, list):
+		if isinstance(bufferdim, (int, long, float))
 			bufferdim = [bufferdim for i in range(0, self.dim)];
+		if not isinstance(bufferdim, list):
+			bufferdim = [0 for i in range(0, self.dim)];
 
-		if n == 0:
-			return [];
-		if n > 1:
-			cells = [];
-			for i in range(0, n):
-				cell = self.addrandomcell(bufferdim, 1);
-				if cell is None:
-					break;
-				cells.append(cell);
-			return cells;
+		self.buffer = bufferdim;
 
-		bool = False;
-		for k,h in enumerate(self.buffer):
-			if h == bufferdim[k]:
-				continue;
-			bool = True;
-			break;
+		if(n == 0) {
+			return([]);
+		} else if($n > 1) {
+			$cells = [];
+			for($i=0; $i<$n; $i++) {
+				$cell = self.addrandomcell($bufferdim, 1);
+				if(!($cell instanceof picassobox)) break;
+				$cells[] = $cell;
+			}
+			return(cells);
+		}
 
-		# Partition für zulässige Teile ggf. neu berechnen:
-		if bool:
-			self.buffer = bufferdim;
-			self.part = [self.box];
-			for PB in self.boxes + self.bounds:
-				self.filtercell(PB);
+		# Partition für zulässige Teile neu berechnen:
+		self.filter = [];
+		for PB in self.bounds + self.boxes:
+			self.filter.append(PB.modify(['preshift'=>-bufferdim, 'colour'=>1]));
 
 		# Zufällige Selektion eines zulässigen Teils der Partition:
-		mass_free = 0;
-		F = [0];
-		indices = [];
-		for ind, PB in enumerate(self.part):
-			if PB.colour == 1:
-				continue;
-			indices.append(ind);
-			mass_free += PB.mass;
-			F.append(mass_free);
-
-		u = numpy.random.uniform(0,1);
-		mu = mass_free*u;
-		ind = None;
-		for i,m in enumerate(F):
-			if i >= len(indices):
-				break;
-			if mu < m:
-				continue;
-			ind = indices[i];
-			break;
-		if ind is None:
-			return None;
-		PB = self.part[ind];
+		PB_part = self.randomselection();
+		if not isinstance(PB_part, 'picassobox'):
+			return(None);
 
 		# Zufällige Selektion eines Punkts in Box:
-		x = PB.randomunif();
-		box = [];
-		for k,h in enumerate(self.buffer):
-			box.append([x[k],x[k]+h]);
-		PB = picassobox(box, 1);
+		x = PB_part.randomunif();
+		sides = [[x[k], x[k]+h] for k, h in enumerate(bufferdim)];
+		PB = picassobox(sides, 1);
 
 		# Füge zum Netzwerk von Zellen:
 		self.boxes.append(PB);
-		# Partition verfeinern:
-		self.filtercell(PB);
 
-		return PB;
+		return($PB);
 
 	def clonelist(self, x, deep=True):
 		xx = x;
