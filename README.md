@@ -3,7 +3,25 @@ Stell dir vor, du hast einen boxartigen Bereich in 1, 2, 3, etc. Dimenensionen. 
 
 Diese Art von geometrischer Zufallserzeugung lässt sich in verschiedenen Fällen wie Biologie, Bodenmechanik, Diagrammerzeugung, usw. anwenden.
 
+
 ## R Class ##
+Für **R** wurde eine Klasse `pyArray` geschrieben, um robuster mit Vektoren umzugehen. Siehe das Skript für mehr Details. Einige Aspekte der `picassobox` und `picassoboxes` Klassen sind von dieser Klasse.
+
+### Beispielcode ###
+```r
+library('picassoboxes');
+
+PBs = picassoboxes(c(1024,768)); # definiert einen 1024 x 768 Bereich
+# Alle Dimensionen >= 1 sind möglich, nicht nur 2!
+PBs$addrandomcell(c(10,10), n=4); # erzeugt 4 Boxes der Größe 10 x 10
+for(PB in PBs$boxes$get()) { # Schleife über die 4 Boxes
+	pt_1 = PB$point(0); # unterster Eckpunkt
+	pt_m = PB$point(0.5); # Mittepunkt der Box
+	pt_2 = PB$point(1); # oberster Eckpunkt
+	# hier kommen Befehle, um bspw. die Box zu malen,
+	# mit den Punkten zu berechnen, usw.
+}
+```
 
 [**Unter Arbeit!**]
 
@@ -14,18 +32,18 @@ Diese Art von geometrischer Zufallserzeugung lässt sich in verschiedenen Fälle
 ```python
 import picassoboxes;
 
-PBnet = picassoboxes([1024,768]); # definiert einen 1024 x 768 Bereich
+PBs = picassoboxes([1024,768]); # definiert einen 1024 x 768 Bereich
 # Alle Dimensionen >= 1 sind möglich, nicht nur 2!
-PBnet.addrandomcell([10,10], 4); # erzeugt 4 Boxes der Größe 10 x 10
-for PB in PBnet.boxes: # Schleife über die 4 Boxes
+PBs.addrandomcell([10,10], 4); # erzeugt 4 Boxes der Größe 10 x 10
+for PB in PBs.boxes: # Schleife über die 4 Boxes
 	pt_1 = PB.point(0); # unterster Eckpunkt
 	pt_m = PB.point(0.5); # Mittepunkt der Box
 	pt_2 = PB.point(1); # oberster Eckpunkt
 	# hier kommen Befehle, um bspw. die Box zu malen,
 	# mit den Punkten zu berechnen, usw.
 
-PBnet.addrandomcell([15,12]); # füge eine 15 x 12 Box hinzu
-for PB in PBnet.part: # zuletzt berechnete Partition des Bereichs
+PBs.addrandomcell([15,12]); # füge eine 15 x 12 Box hinzu
+for PB in PBs.part: # zuletzt berechnete Partition des Bereichs
 	pt = PB.point(0.5);
 	col = PB.colour;
 	# Farbe = 0 <==> verfügbarer Punkt:
@@ -41,11 +59,11 @@ for PB in PBnet.part: # zuletzt berechnete Partition des Bereichs
 ```php
 require_once "[PFAD]/picassoboxes.php";
 
-$PBnet = new picassoboxes([1024,768]); // definiert einen 1024 x 768 Bereich
+$PBs = new picassoboxes([1024,768]); // definiert einen 1024 x 768 Bereich
 // Alle Dimensionen >= 1 sind möglich, nicht nur 2!
-$PBnet->addrandomcell([10,10], 4); // erzeugt 4 Boxes der Größe 10 x 10
+$PBs->addrandomcell([10,10], 4); // erzeugt 4 Boxes der Größe 10 x 10
 
-foreach($PBnet->boxes as $PB) { // Schleife über die 4 Boxes
+foreach($PBs->boxes as $PB) { // Schleife über die 4 Boxes
 	$pt_1 = $PB->point(0); // unterster Eckpunkt
 	$pt_m = $PB->point(0.5); // Mittepunkt der Box
 	$pt_2 = $PB->point(1); // unterster Eckpunkt
@@ -53,8 +71,8 @@ foreach($PBnet->boxes as $PB) { // Schleife über die 4 Boxes
 	// mit den Punkten zu berechnen, usw.
 }
 
-$PBnet->addrandomcell([15,12]); // füge eine 15 x 12 Box hinzu
-foreach($PBnet->part as $PB) { // zuletzt berechnete Partition des Bereichs
+$PBs->addrandomcell([15,12]); // füge eine 15 x 12 Box hinzu
+foreach($PBs->part as $PB) { // zuletzt berechnete Partition des Bereichs
 	$pt = PB->point(0.5);
 	$col = PB->colour;
 	/*

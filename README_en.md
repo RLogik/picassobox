@@ -7,8 +7,23 @@ points of the boxes. The problem: the generated boxes will overlap with a non-0 
 This kind of geometric random generation may be applicable in different cases like biology, soil mechanics, generation of diagrammes, *etc.*
 
 ## R Class ##
+An auxiliary class `pyArray` was written, in order to allow for more robust methods for vectors. See the script for more details. Some aspects of the `picassobox` und `picassoboxes` classes are of this type.
 
-[**documentation to be written**]
+### Beispielcode ###
+```r
+library('picassoboxes');
+
+PBs = picassoboxes(c(1024,768)); # definiert einen 1024 x 768 Bereich
+# Alle Dimensionen >= 1 sind möglich, nicht nur 2!
+PBs$addrandomcell(c(10,10), n=4); # erzeugt 4 Boxes der Größe 10 x 10
+for(PB in PBs$boxes$get()) { # Schleife über die 4 Boxes
+	pt_1 = PB$point(0); # unterster Eckpunkt
+	pt_m = PB$point(0.5); # Mittepunkt der Box
+	pt_2 = PB$point(1); # oberster Eckpunkt
+	# hier kommen Befehle, um bspw. die Box zu malen,
+	# mit den Punkten zu berechnen, usw.
+}
+```
 
 
 ## Python Class ##
@@ -17,18 +32,18 @@ This kind of geometric random generation may be applicable in different cases li
 ```python
 import picassoboxes;
 
-PBnet = picassoboxes([1024,768]); # define a 1024 x 768 region
+PBs = picassoboxes([1024,768]); # define a 1024 x 768 region
 # all dimensions >= 1 are possible, not just 2!
-PBnet.addrandomcell([10,10], 4); # erzeugt 4 Boxes der Größe 10 x 10
-for PB in PBnet.boxes: # loop over the 4 boxes
+PBs.addrandomcell([10,10], 4); # erzeugt 4 Boxes der Größe 10 x 10
+for PB in PBs.boxes: # loop over the 4 boxes
 	pt_1 = PB.point(0); # lower corner
 	pt_m = PB.point(0.5); # mid point
 	pt_2 = PB.point(1); # upper corner
 	# here come your commands to e. g. draw the box
 	# compute stuff with the points, etc.
 
-PBnet.addrandomcell([15,12]); # add a 15 x 12 box
-for PB in PBnet.part: # use the latest computed partition of the region
+PBs.addrandomcell([15,12]); # add a 15 x 12 box
+for PB in PBs.part: # use the latest computed partition of the region
 	pt = PB.point(0.5);
 	col = PB.colour;
 	# Colour = 0 <==> available point:
@@ -44,11 +59,11 @@ for PB in PBnet.part: # use the latest computed partition of the region
 ```php
 require_once "[PFAD]/picassoboxes.php";
 
-$PBnet = new picassoboxes([1024,768]); // define a 1024 x 768 region
+$PBs = new picassoboxes([1024,768]); // define a 1024 x 768 region
 // all dimensions >= 1 are possible, not just 2!
-$PBnet->addrandomcell([10,10], 4); // generates 4 boxes of size 10 x 10
+$PBs->addrandomcell([10,10], 4); // generates 4 boxes of size 10 x 10
 
-foreach($PBnet->boxes as $PB) { // loop over the 4 boxes
+foreach($PBs->boxes as $PB) { // loop over the 4 boxes
 	$pt_1 = $PB->point(0); // lower corner
 	$pt_m = $PB->point(0.5); // mid point
 	$pt_2 = $PB->point(1); // upper corner
@@ -56,8 +71,8 @@ foreach($PBnet->boxes as $PB) { // loop over the 4 boxes
 	// compute stuff with the points, etc.
 }
 
-$PBnet->addrandomcell([15,12]); // add a 15 x 12 box
-foreach($PBnet->part as $PB) { // use the latest computed partition of the region
+$PBs->addrandomcell([15,12]); // add a 15 x 12 box
+foreach($PBs->part as $PB) { // use the latest computed partition of the region
 	$pt = PB->point(0.5);
 	$col = PB->colour;
 	/*
