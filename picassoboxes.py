@@ -131,7 +131,7 @@ class picassoboxes:
 	def __init__(self, sides):
 		sides = self.clonelist(sides);
 		for i, x in enumerate(sides):
-			if !isinstance(x, list):
+			if not isinstance(x, list):
 				sides[i] = [0, x];
 
 		self.dim = len(sides);
@@ -203,34 +203,33 @@ class picassoboxes:
 				break;
 			wt_ = [x for i,x in enumerate(wt) if not i == j];
 			ind = [i for i in ind if not i == j];
-			len_ind--;
+			len_ind -= 1;
 
 		return PB_e;
 
 	def addrandomcell(self, bufferdim, n=1):
-		if isinstance(bufferdim, (int, long, float))
+		if isinstance(bufferdim, (int, long, float)):
 			bufferdim = [bufferdim for i in range(0, self.dim)];
 		if not isinstance(bufferdim, list):
 			bufferdim = [0 for i in range(0, self.dim)];
 
 		self.buffer = bufferdim;
 
-		if(n == 0) {
-			return([]);
-		} else if($n > 1) {
-			$cells = [];
-			for($i=0; $i<$n; $i++) {
-				$cell = self.addrandomcell($bufferdim, 1);
-				if(!($cell instanceof picassobox)) break;
-				$cells[] = $cell;
-			}
-			return(cells);
-		}
+		if n == 0:
+			return [];
+		elif n > 1:
+			cells = [];
+			for i in range(n):
+				cell = self.addrandomcell(bufferdim, 1);
+				if not instanceof(cell, 'picassobox'):
+					break;
+				cells.append(cell);
+			return cells;
 
 		# Partition für zulässige Teile neu berechnen:
 		self.filter = [];
 		for PB in self.bounds + self.boxes:
-			self.filter.append(PB.modify(['preshift'=>-bufferdim, 'colour'=>1]));
+			self.filter.append(PB.modify({'preshift': -bufferdim, 'colour': 1}));
 
 		# Zufällige Selektion eines zulässigen Teils der Partition:
 		PB_part = self.randomselection();
@@ -245,7 +244,106 @@ class picassoboxes:
 		# Füge zum Netzwerk von Zellen:
 		self.boxes.append(PB);
 
-		return($PB);
+		return PB;
+
+	def clonelist(self, x, deep=True):
+		xx = x;
+		if isinstance(x,list) or isinstance(x,tuple):
+			xx = [];
+			for y in x:
+				yy = y;
+				if deep:
+					yy = self.clonelist(y, True);
+				xx.append(yy);
+			if isinstance(x,tuple):
+				xx = tuple(xx);
+		if isinstance(x,dict):
+			xx = {};
+			for key in x:
+				y = x[key];
+				yy = y;
+				if deep:
+					yy = self.clonelist(y, True);
+				xx[key] = yy;
+		return xx;
+
+	pass;
+
+
+class picassolines:
+	def __init__(self, sides=None):
+		if not sides is None:
+			self.setframe(sides);
+		self.edges = [];
+		self.paths = [];
+		self.points = [];
+		self.radius = [];
+		pass;
+
+	def setframe(self, sides):
+		sides = self.clonelist(sides);
+		for i, x in enumerate(sides):
+			if not isinstance(x, list):
+				sides[i] = [0, x];
+		self.dim = len(sides);
+		self.box = picassobox(sides, 0);
+		pass;
+
+	def addpoints(self, x, r):
+		self.points = x;
+		if isinstance(r, list):
+			r = [r for p in x];
+		self.radius = r;
+		pass;
+
+	def addpointsfrompicassoboxes(self, PBs=[], r=1, relative=True):
+		self.dim = PBs.dim;
+		self.box = PBs.box;
+		self.points = [PB.point(0.5) for PB in PBs.boxes];
+		if relative:
+			self.radius = [
+				r*numpy.sqrt(
+					sum([ ((x[1]-x[0])/2)**2 for x in PB.sides ])
+				)
+				for PB in PBs.boxes
+			];
+		else:
+			self.radius = [r for PB in PBs.boxes];
+		pass;
+	
+	def addpath(self, i, j, ptout=None, angleout=None, ptin=None, anglein=None, buffer=0, relative=True):
+		self.edges.append([i, j]);
+		radii = self.clonelist(self.radius);
+		if relative:
+			radii = [(1+buffer)*r for r in radii];
+		else:
+			radii = [r+buffer for r in radii];
+
+		Pout = self.point[i];
+		Rout = radii[i];
+		Pin = self.point[j];
+		Rin = radii[j];
+
+		dP = [Pin[k]-Pout[k] for k in range(self.dim)];
+		norm_dP = numpy.sqrt(sum([dx**2 for dx in dP]));
+		u = [dx/norm_dP for dx in dP];
+		sgn_dP = [numpy.sign(dx) for dx in dP];
+
+		if ptout is None:
+			ptout = [Rout*dx for dx in u];
+		if ptin is None:
+			ptin = [-Rin*dx for dx in u];
+		if angleout is None:
+			angleout = u;
+		if anglein is None:
+			anglein = [-dx for dx in u];
+
+		path = [];
+
+		## berechne Pfad...
+		# unter Arbeit
+
+		return(path);
 
 	def clonelist(self, x, deep=True):
 		xx = x;
