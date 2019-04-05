@@ -151,7 +151,7 @@ class picassoboxes:
 		return [PB.sides for PB in self.boxes];
 
 	def getpartition(self):
-		part <- [self.box];
+		part = [self.box];
 		for PB in self.boxes + self.bounds:
 			PB = PB.modify(preshift=-self.buffer, colour=1);
 			part_ = [];

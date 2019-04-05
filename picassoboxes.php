@@ -145,7 +145,6 @@ class picassoboxes {
 		$this->dim = count($box);
 		$this->box = new picassobox($box, 0);
 		$this->mass = $this->box->mass;
-		$this->part = [$this->box];
 		$this->boxes = [];
 		$this->bounds = [];
 
@@ -160,9 +159,26 @@ class picassoboxes {
 	}
 
 	public function getpartition() {
-		$boxes = [];
-		foreach($this->part as $PB) if($PB->colour === $colour) $boxes[] = $PB->box;
-		return $boxes;
+		$part = [$this->box];
+		$boxes_ = [];
+		foreach($this->boxes as $PB) $boxes_[] = $PB;
+		foreach($this->bounds as $PB) $boxes_[] = $PB;
+		foreach($boxes_ as $PB) {
+			$shift = [];
+			foreach($this->bufferdim as $k => $val) $shift[] = -$val;
+			$PB = $PB->modify(['preshift'=>$shift, 'colour'=>1]);
+			$part_ = pyArray();
+			foreach($part as $k => $PB_) {
+				if($PB_->colour == 0) {
+					$part__ = $PB_->mince($PB);
+				} else {
+					$part__ = [$PB_];
+				}
+				foreach($part__ as $PB__) $part_[] = $PB__;
+			}
+			$part = $part_;
+		}
+		return($part);
 	}
 
 	public function randomselection($depth=0, $PB=NULL) {
@@ -230,9 +246,10 @@ class picassoboxes {
 
 		# Partition für zulässige Teile neu berechnen:
 		$this->filter = [];
-		// foreach($bufferdim as $k => $val) $bufferdim[$k] = -$val;
-		foreach($this->bounds as $PB) $this->filter[] = $PB->modify(['preshift'=>-$bufferdim, 'colour'=>1]);
-		foreach($this->boxes as $PB) $this->filter[] = $PB->modify(['preshift'=>-$bufferdim, 'colour'=>1]);
+		$shift = [];
+		foreach($bufferdim as $k => $val) $shift[] = -$val;
+		foreach($this->bounds as $PB) $this->filter[] = $PB->modify(['preshift'=>$shift, 'colour'=>1]);
+		foreach($this->boxes as $PB) $this->filter[] = $PB->modify(['preshift'=>$shift, 'colour'=>1]);
 
 		# Zufällige Selektion eines zulässigen Teils der Partition:
 		$PB_part = $this->randomselection();

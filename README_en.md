@@ -13,15 +13,25 @@ An auxiliary class `pyArray` was written, in order to allow for more robust meth
 ```r
 library('picassoboxes');
 
-PBs = picassoboxes(c(1024,768)); # definiert einen 1024 x 768 Bereich
+PBs <- picassoboxes(c(1024,768)); # definiert einen 1024 x 768 Bereich
 # Alle Dimensionen >= 1 sind möglich, nicht nur 2!
 PBs$addrandomcell(c(10,10), n=4); # erzeugt 4 Boxes der Größe 10 x 10
 for(PB in PBs$boxes$get()) { # Schleife über die 4 Boxes
-	pt_1 = PB$point(0); # unterster Eckpunkt
-	pt_m = PB$point(0.5); # Mittepunkt der Box
-	pt_2 = PB$point(1); # oberster Eckpunkt
+	pt_1 <- PB$point(0); # unterster Eckpunkt
+	pt_m <- PB$point(0.5); # Mittepunkt der Box
+	pt_2 <- PB$point(1); # oberster Eckpunkt
 	# hier kommen Befehle, um bspw. die Box zu malen,
 	# mit den Punkten zu berechnen, usw.
+}
+
+PBs$addrandomcell([15,12]); # add a 15 x 12 box
+for(PB in PBs$getpartition()$get()) { # use the latest computed partition of the region
+	pt <- PB$point(0.5);
+	col <- PB$colour;
+	# Colour = 0 <==> available point:
+	# i. e. the lower corner of a 15 x 12 box may be placed here,
+	# without risk of overlapping existing boxes.
+	# Colour = 1 <==> not ···
 }
 ```
 
@@ -43,7 +53,7 @@ for PB in PBs.boxes: # loop over the 4 boxes
 	# compute stuff with the points, etc.
 
 PBs.addrandomcell([15,12]); # add a 15 x 12 box
-for PB in PBs.part: # use the latest computed partition of the region
+for PB in PBs.getpartition(): # use the latest computed partition of the region
 	pt = PB.point(0.5);
 	col = PB.colour;
 	# Colour = 0 <==> available point:
@@ -72,7 +82,7 @@ foreach($PBs->boxes as $PB) { // loop over the 4 boxes
 }
 
 $PBs->addrandomcell([15,12]); // add a 15 x 12 box
-foreach($PBs->part as $PB) { // use the latest computed partition of the region
+foreach($PBs->getpartition() as $PB) { // use the latest computed partition of the region
 	$pt = PB->point(0.5);
 	$col = PB->colour;
 	/*
